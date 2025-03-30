@@ -3,6 +3,7 @@ package game
 import la "core:math/linalg"
 import rl "vendor:raylib"
 
+WORLD_GRAVITY :: -20
 
 Player_Animation :: enum {
 	Idle = 0,
@@ -10,18 +11,19 @@ Player_Animation :: enum {
 }
 
 Game_Memory :: struct {
-	run:           bool,
-	player_pos:    rl.Vector3,
-	player_rot:    f32,
-	player_height: f32,
-	cam_fov:       f32,
-	player_model:  rl.Model,
-	current_anim:  Player_Animation,
-	player_anims:  [^]rl.ModelAnimation,
-	world_model:   rl.Model,
+	run:               bool,
+	player_pos:        rl.Vector3,
+	player_rot:        f32,
+	player_height:     f32,
+	cam_fov:           f32,
+	player_model:      rl.Model,
+	current_anim:      Player_Animation,
+	player_anims:      [^]rl.ModelAnimation,
+	player_anim_count: int,
+	world_model:       rl.Model,
 }
 
-
+gamepad_input := rl.Vector2{}
 current_anim_frame := 0
 player_speed :: 20
 cam_sens :: 2.0
@@ -73,6 +75,10 @@ update :: proc() {
 	// player movement
 	input := rl.Vector3{}
 
+	if la.length(gamepad_input) > DEADZONE_LEFT.x {
+		input = {gamepad_input.x, 0, gamepad_input.y}
+	}
+
 	if rl.IsKeyDown(.A) {
 		input.x = -1
 	}
@@ -116,9 +122,33 @@ update :: proc() {
 
 }
 
+
+DEADZONE_LEFT :: rl.Vector2{0.2, 0.2}
+
+get_gamepad_input :: proc() -> rl.Vector2 {
+	input := rl.Vector2{}
+
+	if (rl.IsGamepadAvailable(0)) {
+		jl_x := rl.GetGamepadAxisMovement(0, .LEFT_X)
+		jl_y := rl.GetGamepadAxisMovement(0, .LEFT_Y)
+
+		if jl_x > DEADZONE_LEFT.x {
+			input.x = jl_x
+		}
+		if jl_y > DEADZONE_LEFT.y {
+			input.y = jl_y
+		}
+
+		return input
+	}
+
+	return rl.Vector2{}
+}
+
 draw :: proc() {
 	rl.BeginDrawing()
 	{
+		gamepad_input = get_gamepad_input()
 		rl.ClearBackground(rl.BLACK)
 		rl.BeginMode3D(cam)
 
@@ -158,24 +188,26 @@ game_init :: proc() {
 
 	anim_count := 0
 	g_mem^ = Game_Memory {
-		run           = true,
-		cam_fov       = 60,
-		player_rot    = 0,
-		player_pos    = {},
-		player_height = 2,
-		current_anim  = .Idle,
+		run               = true,
+		cam_fov           = 60,
+		player_rot        = 0,
+		player_pos        = {},
+		player_height     = 2,
+		current_anim      = .Idle,
 
 
 		// You can put textures, sounds and music in the `assets` folder. Those
 		// files will be part any release or web build.
-		world_model   = rl.LoadModel("assets/sandbox.glb"),
-		player_model  = rl.LoadModel("assets/player.glb"),
-		player_anims  = rl.LoadModelAnimations("assets/player.glb", auto_cast (&anim_count)),
+		world_model       = rl.LoadModel("assets/sandbox.glb"),
+		player_model      = rl.LoadModel("assets/player.glb"),
+		player_anims      = rl.LoadModelAnimations("assets/player.glb", auto_cast (&anim_count)),
+		player_anim_count = anim_count,
 	}
 
 	cam = game_camera(g_mem)
 
 	rl.DisableCursor()
+
 	game_hot_reloaded(g_mem)
 }
 
@@ -193,6 +225,9 @@ game_should_run :: proc() -> bool {
 
 @(export)
 game_shutdown :: proc() {
+	rl.UnloadModel(g_mem.player_model)
+	rl.UnloadModelAnimations(g_mem.player_anims, auto_cast g_mem.player_anim_count)
+	rl.UnloadModel(g_mem.world_model)
 	free(g_mem)
 }
 
