@@ -43,6 +43,8 @@ time_since_last_frame := f32(0)
 cam_yaw := f32(0.0)
 cam_pitch := f32(25.0)
 follow_pos := rl.Vector3{}
+targ_speed := rl.Vector3{}
+
 update :: proc() {
 	dt := rl.GetFrameTime()
 
@@ -92,7 +94,8 @@ update :: proc() {
 	right.y = 0
 	right = la.normalize0(right)
 
-	movement := la.normalize0(input) * player_speed * dt
+	targ_speed = la.lerp(targ_speed, la.normalize0(input), 10 * dt)
+	movement := targ_speed * player_speed * dt
 	dir := fwd * movement.z + right * movement.x
 	g_mem.player_pos += dir
 
